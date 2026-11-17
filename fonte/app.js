@@ -18,7 +18,12 @@
   var CORES_PROIBIVEIS = ['', 'red', 'blue', 'green', 'yellow', 'purple', 'black'];
   var NOMES_COR = { white: 'branco', black: 'preto', grey: 'cinza', red: 'vermelho', yellow: 'amarelo', green: 'verde', blue: 'azul', purple: 'roxo', unknown: '—' };
   // Visuais do robô: para acrescentar outro, inclua aqui { id, nome, img, tam (cm) }
-  var ROBOS = [{ id: 'laranja', nome: 'Robô laranja', img: A.robo, tam: 8.6 }];
+  var ROBOS = [
+    { id: 'laranja', nome: 'VinciBot', img: A.robo, tam: 8.6 },
+    { id: 'matata', nome: 'Matata', img: A.matata, tam: 8.6 },
+    { id: 'nous', nome: 'Nous', img: A.nous, tam: 8.6 },
+    { id: 'tale', nome: 'Tale', img: A.tale, tam: 8.6 }
+  ].filter(function (r) { return r.img; });
 
   var LS = 'robovirtual.';
   function carregar(k, padrao) { try { var v = localStorage.getItem(LS + k); return v === null ? padrao : JSON.parse(v); } catch (e) { return padrao; } }
@@ -519,8 +524,13 @@
     ui.btRastro = botao('✎', 'Mostrar ou esconder o caminho do robô', function () { cfg.rastro = !cfg.rastro; salvar('rastro', cfg.rastro); marcar(); }, 'icone');
     ui.btTurbo = botao('', 'Velocidade da simulação', function () { cfg.turbo = cfg.turbo === 1 ? 2 : cfg.turbo === 2 ? 4 : 1; salvar('turbo', cfg.turbo); marcar(); }, 'icone largo');
     ui.btSom = botao('', 'Ligar ou desligar o som', function () { cfg.som = !cfg.som; salvar('som', cfg.som); if (!cfg.som) silenciar(); else audio(); marcar(); }, 'icone');
-    ui.selRobo = el('select', { title: 'Visual do robô', onchange: function () { cfg.robo = ui.selRobo.value; salvar('robo', cfg.robo); carregarRobo(); } }, opcoes(ROBOS.map(function (r) { return [r.id, r.nome]; })));
-    if (ROBOS.length < 2) ui.selRobo.style.display = 'none';
+    ui.robos = ROBOS.map(function (r) {
+      var b = el('button', { 'class': 'robo', type: 'button', title: 'Usar o ' + r.nome, 'data-robo': r.id, onclick: function () { cfg.robo = r.id; salvar('robo', cfg.robo); carregarRobo(); sincronizarControles(); } },
+        [el('img', { src: r.img, alt: '' }), el('span', { text: r.nome })]);
+      return b;
+    });
+    ui.escolhaRobo = el('div', { 'class': 'escolha-robo' }, [el('div', { 'class': 'titulo', text: '🤖 Escolha o robô' }), el('div', { 'class': 'robos' }, ui.robos)]);
+    if (ROBOS.length < 2) ui.escolhaRobo.style.display = 'none';
 
     ui.cod = el('input', { 'class': 'cod', title: 'Quem digitar o mesmo código recebe o mesmo desafio', spellcheck: 'false' });
     ui.cod.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') ui.btAbrir.click(); });
@@ -539,7 +549,8 @@
       el('div', { 'class': 'moldura' }, [ui.canvas]),
       el('div', { 'class': 'status' }, [ui.face, el('div', { 'class': 'chips' }, [ui.chipPos, ui.chipDir, ui.chipCor, ui.chipDist])]),
       ui.aviso, ui.placar, ui.log,
-      el('div', { 'class': 'acoes' }, [ui.btReset, ui.btRastro, ui.btTurbo, ui.btSom, ui.selRobo]),
+      el('div', { 'class': 'acoes' }, [ui.btReset, ui.btRastro, ui.btTurbo, ui.btSom]),
+      ui.escolhaRobo,
       el('div', { 'class': 'montar' }, [
         el('div', { 'class': 'titulo', text: '🛠️ Montar o desafio' }),
         el('div', { 'class': 'cartoes' }, [ui.cartoes.inicio, ui.cartoes.chegada, ui.cartoes.obst, ui.cartoes.proibida]),
@@ -572,7 +583,7 @@
   function sincronizarControles() {
     ui.dirs.forEach(function (b) { b.classList.toggle('ativo', +b.dataset.dir === cfg.inicio.dir); });
     ui.cores.forEach(function (b) { b.classList.toggle('ativo', b.dataset.cor === cfg.proibida); });
-    ui.selRobo.value = cfg.robo;
+    ui.robos.forEach(function (b) { b.classList.toggle('ativo', b.dataset.robo === cfg.robo); });
     if (document.activeElement !== ui.cod) ui.cod.value = codigoMapa();
   }
   function marcar() {
@@ -697,7 +708,7 @@
       clearTimeout(espera); espera = setTimeout(function () { salvar('programa', B.serialization.workspaces.save(ws)); }, 400);
     });
   }
-  function carregarRobo() { var r = ROBOS.filter(function (x) { return x.id === cfg.robo; })[0] || ROBOS[0]; cfg.robo = r.id; TAM_ROBO = r.tam; imgRobo.src = r.img; }
+  function carregarRobo() { var r = ROBOS.filter(function (x) { return x.id === cfg.robo; })[0] || ROBOS[0]; cfg.robo = r.id; TAM_ROBO = r.tam; imgRobo.onload = function () { if (typeof desenhar === 'function') desenhar(); }; imgRobo.src = r.img; }
 
   function pronto() {
     imgTapete.onload = function () {
