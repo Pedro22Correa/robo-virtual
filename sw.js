@@ -1,5 +1,5 @@
 // Robô Virtual — guarda o app no aparelho para abrir sem internet.
-var CACHE = 'robo-virtual-v2';
+var CACHE = 'robo-virtual-v3';
 var ARQUIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARQUIVOS); }).then(function () { return self.skipWaiting(); }));

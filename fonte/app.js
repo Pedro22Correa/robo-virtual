@@ -30,8 +30,8 @@
   var ROBOS = [
     { id: 'vincibot', nome: 'VinciBot', img: A.robo, tam: 8.6, tapete: 'vincibot' },
     { id: 'matata', nome: 'Matata', img: A.roboMatata, tam: 8.6, tapete: 'matata' },
-    { id: 'tale', nome: 'Tale', img: A.roboTale, tam: 9, tapete: 'tale' },
-    { id: 'nous', nome: 'Nous', img: A.roboNous, tam: 16, tapete: 'nous' }
+    { id: 'nous', nome: 'Nous', img: A.roboNous, tam: 16, tapete: 'nous' },
+    { id: 'tale', nome: 'Tale', img: A.roboTale, tam: 9, tapete: 'tale' }
   ];
 
   var LS = 'robovirtual.';
@@ -534,7 +534,11 @@
     ui.btRastro = botao('✎', 'Mostrar ou esconder o caminho do robô', function () { cfg.rastro = !cfg.rastro; salvar('rastro', cfg.rastro); marcar(); }, 'icone');
     ui.btTurbo = botao('', 'Velocidade da simulação', function () { cfg.turbo = cfg.turbo === 1 ? 2 : cfg.turbo === 2 ? 4 : 1; salvar('turbo', cfg.turbo); marcar(); }, 'icone largo');
     ui.btSom = botao('', 'Ligar ou desligar o som', function () { cfg.som = !cfg.som; salvar('som', cfg.som); if (!cfg.som) silenciar(); else audio(); marcar(); }, 'icone');
-    ui.selRobo = el('select', { title: 'Escolher o robô (cada um tem o seu tapete)', onchange: function () { cfg.robo = ui.selRobo.value; salvar('robo', cfg.robo); carregarRobo(); } }, opcoes(ROBOS.map(function (r) { return [r.id, '🤖 ' + r.nome]; })));
+    ui.robos = ROBOS.map(function (r) {
+      return el('button', { 'class': 'robo', type: 'button', title: 'Usar o ' + r.nome + ' (com o tapete dele)', 'data-robo': r.id, onclick: function () { cfg.robo = r.id; salvar('robo', cfg.robo); carregarRobo(); sincronizarControles(); } },
+        [el('img', { src: r.img, alt: '' }), el('span', { text: r.nome })]);
+    });
+    ui.escolhaRobo = el('div', { 'class': 'escolha-robo' }, [el('div', { 'class': 'titulo', text: '🤖 Escolha o robô — cada um tem o seu tapete' }), el('div', { 'class': 'robos' }, ui.robos)]);
 
     ui.cod = el('input', { 'class': 'cod', title: 'Quem digitar o mesmo código recebe o mesmo desafio', spellcheck: 'false' });
     ui.cod.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') ui.btAbrir.click(); });
@@ -553,7 +557,8 @@
       el('div', { 'class': 'moldura' }, [ui.canvas]),
       el('div', { 'class': 'status' }, [ui.face, el('div', { 'class': 'chips' }, [ui.chipPos, ui.chipDir, ui.chipCor, ui.chipDist])]),
       ui.aviso, ui.placar, ui.log,
-      el('div', { 'class': 'acoes' }, [ui.btReset, ui.btRastro, ui.btTurbo, ui.btSom, ui.selRobo]),
+      el('div', { 'class': 'acoes' }, [ui.btReset, ui.btRastro, ui.btTurbo, ui.btSom]),
+      ui.escolhaRobo,
       el('div', { 'class': 'montar' }, [
         el('div', { 'class': 'titulo', text: '🛠️ Montar o desafio' }),
         el('div', { 'class': 'cartoes' }, [ui.cartoes.inicio, ui.cartoes.chegada, ui.cartoes.obst, ui.cartoes.proibida]),
@@ -599,7 +604,7 @@
   function sincronizarControles() {
     ui.dirs.forEach(function (b) { b.classList.toggle('ativo', +b.dataset.dir === cfg.inicio.dir); });
     ui.cores.forEach(function (b) { b.classList.toggle('ativo', b.dataset.cor === cfg.proibida); });
-    ui.selRobo.value = cfg.robo;
+    ui.robos.forEach(function (b) { b.classList.toggle('ativo', b.dataset.robo === cfg.robo); });
     if (document.activeElement !== ui.cod) ui.cod.value = codigoMapa();
   }
   function marcar() {
@@ -752,7 +757,7 @@
     var r = ROBOS.filter(function (x) { return x.id === cfg.robo; })[0] || ROBOS[0]; cfg.robo = r.id; TAM_ROBO = r.tam; imgRobo.src = r.img;
     if (TAPETE && TAPETE.id !== r.tapete) { cfg.inicio = { col: 0, row: 0, dir: 0 }; cfg.etapas = []; cfg.obst = []; cfg.proibida = ''; salvarMapa(); }
     aplicarTapete(r.tapete);
-    if (ui.selRobo) ui.selRobo.value = r.id;
+    if (ui.robos) ui.robos.forEach(function (b) { b.classList.toggle('ativo', b.dataset.robo === r.id); });
   }
 
   function pronto() {
