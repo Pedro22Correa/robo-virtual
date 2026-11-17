@@ -3582,6 +3582,8 @@ return Blockly.Msg;
     }
     ui.cartoes = { inicio: cartao('inicio', '🤖', 'Início'), chegada: cartao('chegada', '🏁', 'Chegada'), obst: cartao('obst', '🧱', 'Obstáculos'), proibida: cartao('proibida', '⛔', 'Cor proibida') };
     ui.dica = el('div', { 'class': 'dica' });
+    ui.legenda = el('div', { 'class': 'legenda', style: 'text-align:center;font-weight:700;font-size:13px;color:#51606e;margin:0 0 6px' });
+    legendaTapete();
 
     // opções de cada ferramenta
     ui.dirs = [['↑', 0, 'Norte'], ['→', 90, 'Leste'], ['↓', 180, 'Sul'], ['←', 270, 'Oeste']].map(function (d) {
@@ -3628,6 +3630,7 @@ return Blockly.Msg;
 
     ui.sim.appendChild(el('div', { 'class': 'top' }, [el('span', { text: '🗺️ Tapete de Missões' }), ui.btMenor, ui.btMaior]));
     ui.sim.appendChild(el('div', { 'class': 'corpo' }, [
+      ui.legenda,
       el('div', { 'class': 'moldura' }, [ui.canvas]),
       el('div', { 'class': 'status' }, [ui.face, el('div', { 'class': 'chips' }, [ui.chipPos, ui.chipDir, ui.chipCor, ui.chipDist])]),
       ui.aviso, ui.placar, ui.log,
@@ -3659,6 +3662,10 @@ return Blockly.Msg;
     });
     window.addEventListener('resize', ajustar);
     montarAtalhos(); sincronizarControles(); ajustar(); marcar();
+  }
+  function legendaTapete() {
+    if (!ui.legenda || !TAPETE) return;
+    ui.legenda.textContent = '📏 Cada quadrante mede ' + CEL + ' cm · grade ' + MAT.cols + ' × ' + MAT.rows;
   }
   function montarAtalhos() {
     if (!ui.opChegada) return;
@@ -3817,7 +3824,7 @@ return Blockly.Msg;
       if (ui.canvas) ajustar();
     }
     if (!mapaValido()) { cfg.inicio = { col: 0, row: 0, dir: 0 }; cfg.etapas = []; cfg.obst = []; cfg.proibida = ''; salvarMapa(); }
-    if (mudou && ui.canvas) { montarAtalhos(); pararPrograma(); reiniciar(); sincronizarControles(); }
+    if (mudou && ui.canvas) { legendaTapete(); montarAtalhos(); pararPrograma(); reiniciar(); sincronizarControles(); }
     return mudou;
   }
   function tapeteCarregado() {
