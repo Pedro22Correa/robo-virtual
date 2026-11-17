@@ -7,9 +7,18 @@
   'use strict';
   var A = window.ROBO_ARQUIVOS; // imagens embutidas (tapete, robô, logo)
 
-  var MAT = { w: 1255, h: 784, ax: 100, ay: 708, ppcX: 10.54, ppcY: 10.48, cols: 10, rows: 7 };
+  /* Tapetes: ax/ay = centro do quadrante A1 (canto de baixo, à esquerda) na imagem; ppcX/ppcY = pixels por cm;
+     cel = lado do quadrante em cm; inv = a numeração das linhas começa no topo; est = atalhos de chegada [rótulo, quadrante, nome]. */
+  var TAPETES = [
+    { id: 'vincibot', nome: 'Tapete VinciBot', img: A.tapete, w: 1255, h: 784, ax: 100, ay: 708, ppcX: 10.54, ppcY: 10.48, cols: 10, rows: 7, cel: 10, inv: false,
+      est: [['1', 'B3', 'número 1'], ['2', 'E7', 'número 2'], ['3', 'E1', 'número 3'], ['4', 'I5', 'número 4'], ['5', 'C5', 'número 5']] },
+    { id: 'matata', nome: 'Tapete Matata', img: A.tapeteMatata, w: 665, h: 767, ax: 72, ay: 616, ppcX: 10.58, ppcY: 10.96, cols: 6, rows: 6, cel: 10, inv: false,
+      est: [['▲', 'A1', 'triângulo'], ['●', 'F1', 'círculo'], ['★', 'F6', 'estrela'], ['■', 'A6', 'quadrado']] },
+    { id: 'tale', nome: 'Tapete Tale', img: A.tapeteTale, w: 1000, h: 689, ax: 211.8, ay: 606.9, ppcX: 14.00, ppcY: 11.93, cols: 6, rows: 5, cel: 10, inv: true, est: [] },
+    { id: 'nous', nome: 'Tapete Nous', img: A.tapeteNous, w: 689, h: 483, ax: 88, ay: 395.5, ppcX: 4.28, ppcY: 4.3, cols: 7, rows: 4, cel: 20, inv: false, est: [] }
+  ];
+  var MAT = {}, CEL = 10, LINV = false, ESTACOES = [], TAPETE = null;
   var COLS = 'ABCDEFGHIJ';
-  var NUMEROS = { '1': 'B3', '2': 'E7', '3': 'E1', '4': 'I5', '5': 'C5' };
   var VEL_LINEAR = 10, VEL_GIRO = 90, BITOLA = 8, TAM_ROBO = 8.6, TAM_OBST = 9;
   var NIVEIS = [
     { nome: 'Fácil', qtd: 4, curvas: 1, max: 2 }, { nome: 'Médio', qtd: 8, curvas: 2, max: 4 },
@@ -17,8 +26,13 @@
   ];
   var CORES_PROIBIVEIS = ['', 'red', 'blue', 'green', 'yellow', 'purple', 'black'];
   var NOMES_COR = { white: 'branco', black: 'preto', grey: 'cinza', red: 'vermelho', yellow: 'amarelo', green: 'verde', blue: 'azul', purple: 'roxo', unknown: '—' };
-  // Visuais do robô: para acrescentar outro, inclua aqui { id, nome, img, tam (cm) }
-  var ROBOS = [{ id: 'laranja', nome: 'Robô laranja', img: A.robo, tam: 8.6 }];
+  // Cada robô tem o seu tapete. Para acrescentar outro: { id, nome, img, tam (cm), tapete (id em TAPETES) }
+  var ROBOS = [
+    { id: 'vincibot', nome: 'VinciBot', img: A.robo, tam: 8.6, tapete: 'vincibot' },
+    { id: 'matata', nome: 'Matata', img: A.roboMatata, tam: 8.6, tapete: 'matata' },
+    { id: 'tale', nome: 'Tale', img: A.roboTale, tam: 9, tapete: 'tale' },
+    { id: 'nous', nome: 'Nous', img: A.roboNous, tam: 16, tapete: 'nous' }
+  ];
 
   var LS = 'robovirtual.';
   function carregar(k, padrao) { try { var v = localStorage.getItem(LS + k); return v === null ? padrao : JSON.parse(v); } catch (e) { return padrao; } }
@@ -44,9 +58,9 @@
   /* ---------- Utilidades ---------- */
   function chave(c, r) { return c + ',' + r; }
   function dentro(c, r) { return c >= 0 && c < MAT.cols && r >= 0 && r < MAT.rows; }
-  function celulaDe(x, y) { var c = Math.round(x / 10), r = Math.round(y / 10); return dentro(c, r) ? { col: c, row: r, nome: COLS[c] + (r + 1) } : null; }
-  function nomeCel(o) { return COLS[o.col] + (o.row + 1); }
-  function parseCelula(nome) { return { col: COLS.indexOf(nome[0]), row: parseInt(nome.slice(1), 10) - 1 }; }
+  function celulaDe(x, y) { var c = Math.round(x / CEL), r = Math.round(y / CEL); return dentro(c, r) ? { col: c, row: r, nome: nomeCel({ col: c, row: r }) } : null; }
+  function nomeCel(o) { return COLS[o.col] + (LINV ? MAT.rows - o.row : o.row + 1); }
+  function parseCelula(nome) { var n = parseInt(nome.slice(1), 10); return { col: COLS.indexOf(nome[0]), row: LINV ? MAT.rows - n : n - 1 }; }
   function nomeDir(d) { d = ((d % 360) + 360) % 360; return ['Norte', 'Nordeste', 'Leste', 'Sudeste', 'Sul', 'Sudoeste', 'Oeste', 'Noroeste'][Math.round(d / 45) % 8]; }
   function limpar(v) { return Math.abs(v - Math.round(v)) < 1e-6 ? Math.round(v) : v; }
   function numero(v, padrao) { var n = parseFloat(v); return isFinite(n) ? n : (padrao || 0); }
@@ -85,24 +99,24 @@
       else { a = (y0 - robo.y) / dy; b = (y1 - robo.y) / dy; t0 = Math.max(t0, Math.min(a, b)); t1 = Math.min(t1, Math.max(a, b)); }
       return (t1 >= t0 && t1 > 0) ? Math.max(t0, 0) : Infinity;
     }
-    var minX = -5, maxX = MAT.cols * 10 - 5, minY = -5, maxY = MAT.rows * 10 - 5;
+    var minX = -CEL / 2, maxX = MAT.cols * CEL - CEL / 2, minY = -CEL / 2, maxY = MAT.rows * CEL - CEL / 2;
     if (dx > 1e-9) best = Math.min(best, (maxX - robo.x) / dx);
     if (dx < -1e-9) best = Math.min(best, (minX - robo.x) / dx);
     if (dy > 1e-9) best = Math.min(best, (maxY - robo.y) / dy);
     if (dy < -1e-9) best = Math.min(best, (minY - robo.y) / dy);
     var h = TAM_OBST / 2;
-    cfg.obst.forEach(function (k) { var p = k.split(','), cx = p[0] * 10, cy = p[1] * 10; best = Math.min(best, caixa(cx - h, cx + h, cy - h, cy + h)); });
+    cfg.obst.forEach(function (k) { var p = k.split(','), cx = p[0] * CEL, cy = p[1] * CEL; best = Math.min(best, caixa(cx - h, cx + h, cy - h, cy + h)); });
     return Math.round(Math.max(0, best - TAM_ROBO / 2) * 10) / 10;
   }
 
   /* ---------- Física ---------- */
   function bateObst(x, y) {
     var lim = TAM_OBST / 2 + TAM_ROBO / 2 - 0.2;
-    for (var i = 0; i < cfg.obst.length; i++) { var p = cfg.obst[i].split(','); if (Math.abs(x - p[0] * 10) < lim && Math.abs(y - p[1] * 10) < lim) return true; }
+    for (var i = 0; i < cfg.obst.length; i++) { var p = cfg.obst[i].split(','); if (Math.abs(x - p[0] * CEL) < lim && Math.abs(y - p[1] * CEL) < lim) return true; }
     return false;
   }
   function limitar() {
-    var m = TAM_ROBO / 2, bateu = false, minX = -5 + m, maxX = MAT.cols * 10 - 5 - m, minY = -5 + m, maxY = MAT.rows * 10 - 5 - m;
+    var m = TAM_ROBO / 2, bateu = false, minX = -CEL / 2 + m, maxX = MAT.cols * CEL - CEL / 2 - m, minY = -CEL / 2 + m, maxY = MAT.rows * CEL - CEL / 2 - m;
     if (robo.x < minX) { robo.x = minX; bateu = true; } if (robo.x > maxX) { robo.x = maxX; bateu = true; }
     if (robo.y < minY) { robo.y = minY; bateu = true; } if (robo.y > maxY) { robo.y = maxY; bateu = true; }
     return bateu;
@@ -357,7 +371,8 @@
     for (var tent = 0; tent < 2500; tent++) {
       if (tent && tent % 500 === 0) { if (minC > 0) minC--; maxC++; }
       var pool = livres.slice(), obst = [];
-      for (var i = 0; i < cfgN.qtd && pool.length; i++) obst.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+      var qtd = Math.max(1, Math.round(cfgN.qtd * MAT.cols * MAT.rows / 70));
+      for (var i = 0; i < qtd && pool.length; i++) obst.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
       var a = analisar(obst, cfg.inicio, cfg.etapas);
       if (a.ok) { if (!melhor) melhor = obst; if (a.curvas >= minC && a.curvas <= maxC) { melhor = obst; break; } }
     }
@@ -369,12 +384,12 @@
   function codigoMapa() {
     var bits = [];
     function w(v, n) { for (var i = n - 1; i >= 0; i--) bits.push((v >> i) & 1); }
-    w(1, 2); w(cfg.inicio.col, 4); w(cfg.inicio.row, 3); w(Math.round(cfg.inicio.dir / 90) % 4, 2);
+    w(2, 2); w(Math.max(0, TAPETES.indexOf(TAPETE)), 2); w(cfg.inicio.col, 4); w(cfg.inicio.row, 3); w(Math.round(cfg.inicio.dir / 90) % 4, 2);
     w(Math.max(0, CORES_PROIBIVEIS.indexOf(cfg.proibida)), 3);
     var et = cfg.etapas.slice(0, 7); w(et.length, 3); et.forEach(function (e) { w(e.col, 4); w(e.row, 3); });
     var idx = cfg.obst.map(function (k) { var p = k.split(','); return p[1] * MAT.cols + (+p[0]); }).sort(function (a, b) { return a - b; });
     if (idx.length <= 9) { w(0, 1); w(idx.length, 5); idx.forEach(function (v) { w(v, 7); }); }
-    else { w(1, 1); for (var i = 0; i < 70; i++) w(idx.indexOf(i) >= 0 ? 1 : 0, 1); }
+    else { w(1, 1); for (var i = 0; i < MAT.cols * MAT.rows; i++) w(idx.indexOf(i) >= 0 ? 1 : 0, 1); }
     while (bits.length % 5) bits.push(0);
     var s = '', soma = 0;
     for (var j = 0; j < bits.length; j += 5) { var v = bits[j] << 4 | bits[j + 1] << 3 | bits[j + 2] << 2 | bits[j + 3] << 1 | bits[j + 4]; s += ALFA[v]; soma = (soma + v * (j / 5 + 1)) % 32; }
@@ -389,11 +404,16 @@
     var bits = []; for (i = 0; i < vals.length - 1; i++) for (var b = 4; b >= 0; b--) bits.push((vals[i] >> b) & 1);
     var p = 0, falha = false;
     function r(n) { var v2 = 0; for (var k = 0; k < n; k++) { if (p >= bits.length) { falha = true; return 0; } v2 = v2 << 1 | bits[p++]; } return v2; }
-    if (r(2) !== 1) return false;
+    var ver = r(2), tIdx = 0;
+    if (ver === 2) tIdx = r(2); else if (ver !== 1) return false;
+    if (tIdx >= TAPETES.length) return false;
+    var rb = ROBOS.filter(function (x) { return x.tapete === TAPETES[tIdx].id; })[0];
+    if (!rb) return false;
+    if (cfg.robo !== rb.id) { cfg.robo = rb.id; salvar('robo', rb.id); carregarRobo(); }
     var ini = { col: r(4), row: r(3), dir: r(2) * 90 }, pro = r(3), n = r(3), et = [], ob = [];
     for (i = 0; i < n; i++) et.push({ col: r(4), row: r(3) });
     if (r(1) === 0) { var q = r(5); for (i = 0; i < q; i++) { var x = r(7); ob.push(chave(x % MAT.cols, Math.floor(x / MAT.cols))); } }
-    else for (i = 0; i < 70; i++) if (r(1)) ob.push(chave(i % MAT.cols, Math.floor(i / MAT.cols)));
+    else for (i = 0; i < MAT.cols * MAT.rows; i++) if (r(1)) ob.push(chave(i % MAT.cols, Math.floor(i / MAT.cols)));
     if (falha || !dentro(ini.col, ini.row) || pro >= CORES_PROIBIVEIS.length) return false;
     if (et.some(function (e) { return !dentro(e.col, e.row); }) || ob.some(function (k) { var pp = k.split(','); return !dentro(+pp[0], +pp[1]); })) return false;
     cfg.inicio = ini; cfg.etapas = et; cfg.obst = ob; cfg.proibida = CORES_PROIBIVEIS[pro];
@@ -412,7 +432,7 @@
     }
     if (jogo.ok || !cfg.etapas.length || jogo.etapa >= cfg.etapas.length) return;
     var e = cfg.etapas[jogo.etapa];
-    if (Math.abs(robo.x - e.col * 10) < 2.6 && Math.abs(robo.y - e.row * 10) < 2.6) {
+    if (Math.abs(robo.x - e.col * CEL) < CEL * 0.26 && Math.abs(robo.y - e.row * CEL) < CEL * 0.26) {
       jogo.etapa++;
       if (jogo.etapa >= cfg.etapas.length) concluir();
       else { aviso('✅ Etapa ' + jogo.etapa + ' de ' + cfg.etapas.length + ' concluída.', true); nota(freqMidi(76), 0.12, 'triangle'); }
@@ -430,7 +450,7 @@
   }
   function reiniciar() {
     pararMovimento(); silenciar();
-    robo.x = cfg.inicio.col * 10; robo.y = cfg.inicio.row * 10; robo.dir = cfg.inicio.dir;
+    robo.x = cfg.inicio.col * CEL; robo.y = cfg.inicio.row * CEL; robo.dir = cfg.inicio.dir;
     robo.led = null; mostrarFigura(IMAGENS.olhos); rastro = [[robo.x, robo.y]]; zerarJogo();
   }
 
@@ -494,14 +514,9 @@
       var b = botao(d[0], 'Olhar para o ' + d[2], function () { cfg.inicio.dir = d[1]; mudouMapa(); }, 'dir'); b.dataset.dir = d[1]; return b;
     });
     ui.opInicio = el('div', { 'class': 'opcoes' }, [el('span', { 'class': 'rot', text: 'Olhando para:' })].concat(ui.dirs));
-    var numeros = ['1', '2', '3', '4', '5'].map(function (n) {
-      return botao(n, 'Chegar no número ' + n, function () { cfg.etapas = [parseCelula(NUMEROS[n])]; cfg.etapas.forEach(tirarObst); mudouMapa(); }, 'num');
-    });
-    ui.opChegada = el('div', { 'class': 'opcoes' }, [el('span', { 'class': 'rot', text: 'Atalhos:' })].concat(numeros, [
-      botao('1 → 5', 'Passar pelos números 1, 2, 3, 4 e 5, nessa ordem', function () { cfg.etapas = ['1', '2', '3', '4', '5'].map(function (n) { return parseCelula(NUMEROS[n]); }); cfg.etapas.forEach(tirarObst); mudouMapa(); }, 'num largo'),
-      botao('🧹', 'Tirar a chegada', function () { cfg.etapas = []; mudouMapa(); }, 'num')]));
+    ui.opChegada = el('div', { 'class': 'opcoes' });
     ui.niveis = NIVEIS.map(function (n, i) {
-      var b = el('button', { type: 'button', 'class': 'nivel', title: 'Sortear ' + n.qtd + ' caixotes (sempre existe um caminho)' }, [el('span', { 'class': 'dado', text: '🎲' }), el('span', { text: n.nome })]);
+      var b = el('button', { type: 'button', 'class': 'nivel', title: 'Sortear caixotes — nível ' + n.nome.toLowerCase() + ' (sempre existe um caminho)' }, [el('span', { 'class': 'dado', text: '🎲' }), el('span', { text: n.nome })]);
       b.style.setProperty('--cor', NIVEL_COR[i]);
       b.addEventListener('click', function () { if (gerarObstaculos(i)) { sincronizarControles(); aviso('Mapa sorteado: ' + n.nome.toLowerCase() + '!', true); } });
       return b;
@@ -519,8 +534,7 @@
     ui.btRastro = botao('✎', 'Mostrar ou esconder o caminho do robô', function () { cfg.rastro = !cfg.rastro; salvar('rastro', cfg.rastro); marcar(); }, 'icone');
     ui.btTurbo = botao('', 'Velocidade da simulação', function () { cfg.turbo = cfg.turbo === 1 ? 2 : cfg.turbo === 2 ? 4 : 1; salvar('turbo', cfg.turbo); marcar(); }, 'icone largo');
     ui.btSom = botao('', 'Ligar ou desligar o som', function () { cfg.som = !cfg.som; salvar('som', cfg.som); if (!cfg.som) silenciar(); else audio(); marcar(); }, 'icone');
-    ui.selRobo = el('select', { title: 'Visual do robô', onchange: function () { cfg.robo = ui.selRobo.value; salvar('robo', cfg.robo); carregarRobo(); } }, opcoes(ROBOS.map(function (r) { return [r.id, r.nome]; })));
-    if (ROBOS.length < 2) ui.selRobo.style.display = 'none';
+    ui.selRobo = el('select', { title: 'Escolher o robô (cada um tem o seu tapete)', onchange: function () { cfg.robo = ui.selRobo.value; salvar('robo', cfg.robo); carregarRobo(); } }, opcoes(ROBOS.map(function (r) { return [r.id, '🤖 ' + r.nome]; })));
 
     ui.cod = el('input', { 'class': 'cod', title: 'Quem digitar o mesmo código recebe o mesmo desafio', spellcheck: 'false' });
     ui.cod.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') ui.btAbrir.click(); });
@@ -565,7 +579,20 @@
       mudouMapa();
     });
     window.addEventListener('resize', ajustar);
-    sincronizarControles(); ajustar(); marcar();
+    montarAtalhos(); sincronizarControles(); ajustar(); marcar();
+  }
+  function montarAtalhos() {
+    if (!ui.opChegada) return;
+    ui.opChegada.textContent = '';
+    ui.opChegada.appendChild(el('span', { 'class': 'rot', text: 'Atalhos:' }));
+    ESTACOES.forEach(function (e) {
+      ui.opChegada.appendChild(botao(e[0], 'Chegar no ' + e[2], function () { cfg.etapas = [parseCelula(e[1])]; cfg.etapas.forEach(tirarObst); mudouMapa(); }, 'num'));
+    });
+    if (ESTACOES.length > 1) {
+      var ult = ESTACOES[ESTACOES.length - 1];
+      ui.opChegada.appendChild(botao(ESTACOES[0][0] + ' → ' + ult[0], 'Passar por todos, em ordem', function () { cfg.etapas = ESTACOES.map(function (e) { return parseCelula(e[1]); }); cfg.etapas.forEach(tirarObst); mudouMapa(); }, 'num largo'));
+    }
+    ui.opChegada.appendChild(botao('🧹', 'Tirar a chegada', function () { cfg.etapas = []; mudouMapa(); }, 'num'));
   }
   function mudouMapa() { salvarMapa(); pararPrograma(); reiniciar(); sincronizarControles(); }
   function tirarObst(c) { var i = cfg.obst.indexOf(chave(c.col, c.row)); if (i >= 0) cfg.obst.splice(i, 1); }
@@ -607,52 +634,53 @@
   function py(y) { return MAT.ay - y * MAT.ppcY; }
   function desenhar() {
     var g = ui.canvas.getContext('2d'), i;
+    var uX = CEL * MAT.ppcX, uY = CEL * MAT.ppcY, k = Math.sqrt(uX * uY) / 105;
     g.clearRect(0, 0, MAT.w, MAT.h);
     if (imgTapete.complete && imgTapete.naturalWidth) g.drawImage(imgTapete, 0, 0, MAT.w, MAT.h);
     if (cfg.proibida && corCelula) {
       for (var c = 0; c < MAT.cols; c++) for (var r = 0; r < MAT.rows; r++) if (corCelula[c][r] === cfg.proibida) {
-        var fx = px(c * 10), fy = py(r * 10);
-        g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(fx, fy, 20, 0, Math.PI * 2); g.fill();
-        g.lineWidth = 6; g.strokeStyle = '#d11'; g.beginPath(); g.arc(fx, fy, 17, 0, Math.PI * 2); g.moveTo(fx - 12, fy - 12); g.lineTo(fx + 12, fy + 12); g.stroke();
+        var fx = px(c * CEL), fy = py(r * CEL);
+        g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(fx, fy, 20 * k, 0, Math.PI * 2); g.fill();
+        g.lineWidth = 6 * k; g.strokeStyle = '#d11'; g.beginPath(); g.arc(fx, fy, 17 * k, 0, Math.PI * 2); g.moveTo(fx - 12 * k, fy - 12 * k); g.lineTo(fx + 12 * k, fy + 12 * k); g.stroke();
       }
     }
-    var to = TAM_OBST * MAT.ppcX;
-    cfg.obst.forEach(function (k) {
-      var p = k.split(','), ox = px(p[0] * 10), oy = py(p[1] * 10);
-      g.fillStyle = '#b5793f'; g.strokeStyle = '#6f4420'; g.lineWidth = 6;
-      g.fillRect(ox - to / 2, oy - to / 2, to, to); g.strokeRect(ox - to / 2 + 3, oy - to / 2 + 3, to - 6, to - 6);
-      g.lineWidth = 5; g.beginPath(); g.moveTo(ox - to / 2 + 8, oy - to / 2 + 8); g.lineTo(ox + to / 2 - 8, oy + to / 2 - 8);
-      g.moveTo(ox + to / 2 - 8, oy - to / 2 + 8); g.lineTo(ox - to / 2 + 8, oy + to / 2 - 8); g.stroke();
+    var toX = TAM_OBST * MAT.ppcX, toY = TAM_OBST * MAT.ppcY, m3 = 3 * k, m8 = 8 * k;
+    cfg.obst.forEach(function (kk) {
+      var p = kk.split(','), ox = px(p[0] * CEL), oy = py(p[1] * CEL);
+      g.fillStyle = '#b5793f'; g.strokeStyle = '#6f4420'; g.lineWidth = 6 * k;
+      g.fillRect(ox - toX / 2, oy - toY / 2, toX, toY); g.strokeRect(ox - toX / 2 + m3, oy - toY / 2 + m3, toX - 2 * m3, toY - 2 * m3);
+      g.lineWidth = 5 * k; g.beginPath(); g.moveTo(ox - toX / 2 + m8, oy - toY / 2 + m8); g.lineTo(ox + toX / 2 - m8, oy + toY / 2 - m8);
+      g.moveTo(ox + toX / 2 - m8, oy - toY / 2 + m8); g.lineTo(ox - toX / 2 + m8, oy + toY / 2 - m8); g.stroke();
     });
     var t = Date.now() / 300;
     cfg.etapas.forEach(function (e, n) {
-      var ex = px(e.col * 10), ey = py(e.row * 10), feita = n < jogo.etapa, atual = n === jogo.etapa && !jogo.ok;
-      g.lineWidth = 7; g.strokeStyle = feita ? '#0a8a4a' : atual ? 'rgba(230,50,50,' + (0.65 + 0.3 * Math.sin(t)) + ')' : 'rgba(230,50,50,.45)';
-      g.setLineDash([16, 10]); g.strokeRect(ex - 50, ey - 50, 100, 100); g.setLineDash([]);
+      var ex = px(e.col * CEL), ey = py(e.row * CEL), feita = n < jogo.etapa, atual = n === jogo.etapa && !jogo.ok;
+      g.lineWidth = 7 * k; g.strokeStyle = feita ? '#0a8a4a' : atual ? 'rgba(230,50,50,' + (0.65 + 0.3 * Math.sin(t)) + ')' : 'rgba(230,50,50,.45)';
+      g.setLineDash([16 * k, 10 * k]); g.strokeRect(ex - uX * 0.47, ey - uY * 0.47, uX * 0.94, uY * 0.94); g.setLineDash([]);
       if (cfg.etapas.length > 1 || feita) {
-        g.fillStyle = feita ? '#0a8a4a' : '#e23232'; g.beginPath(); g.arc(ex + 36, ey - 36, 17, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#fff'; g.font = 'bold 24px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(feita ? '✓' : String(n + 1), ex + 36, ey - 35);
+        g.fillStyle = feita ? '#0a8a4a' : '#e23232'; g.beginPath(); g.arc(ex + uX * 0.34, ey - uY * 0.34, 17 * k, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.font = 'bold ' + Math.round(24 * k) + 'px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(feita ? '✓' : String(n + 1), ex + uX * 0.34, ey - uY * 0.34 + k);
       }
     });
-    var ix = px(cfg.inicio.col * 10), iy = py(cfg.inicio.row * 10);
-    g.lineWidth = 4; g.strokeStyle = 'rgba(40,40,40,.55)'; g.setLineDash([6, 6]); g.beginPath(); g.arc(ix, iy, 46, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    var ix = px(cfg.inicio.col * CEL), iy = py(cfg.inicio.row * CEL);
+    g.lineWidth = 4 * k; g.strokeStyle = 'rgba(40,40,40,.55)'; g.setLineDash([6 * k, 6 * k]); g.beginPath(); g.arc(ix, iy, 46 * k, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
     if (cfg.rastro && rastro.length > 1) {
-      g.lineWidth = 6; g.lineJoin = 'round'; g.lineCap = 'round'; g.strokeStyle = 'rgba(255,90,0,.75)';
+      g.lineWidth = 6 * k; g.lineJoin = 'round'; g.lineCap = 'round'; g.strokeStyle = 'rgba(255,90,0,.75)';
       g.beginPath(); g.moveTo(px(rastro[0][0]), py(rastro[0][1]));
       for (i = 1; i < rastro.length; i++) g.lineTo(px(rastro[i][0]), py(rastro[i][1]));
       g.stroke();
     }
-    var tam = TAM_ROBO * MAT.ppcX;
+    var tam = TAM_ROBO * Math.sqrt(MAT.ppcX * MAT.ppcY);
     g.save(); g.translate(px(robo.x), py(robo.y)); g.rotate((robo.dir + (robo.balanco || 0)) * Math.PI / 180);
     if (robo.led) {
-      g.shadowColor = 'rgb(' + robo.led.join(',') + ')'; g.shadowBlur = 40;
+      g.shadowColor = 'rgb(' + robo.led.join(',') + ')'; g.shadowBlur = 40 * k;
       g.fillStyle = 'rgba(' + robo.led.join(',') + ',.55)'; g.beginPath(); g.arc(0, 0, tam * 0.56, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
     }
-    g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 12; g.shadowOffsetY = 3;
+    g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 12 * k; g.shadowOffsetY = 3 * k;
     if (imgRobo.complete && imgRobo.naturalWidth) g.drawImage(imgRobo, -tam / 2, -tam / 2, tam, tam);
     else { g.fillStyle = '#f0841c'; g.fillRect(-tam / 2, -tam / 2, tam, tam); }
-    g.shadowColor = 'transparent'; g.fillStyle = '#fff'; g.strokeStyle = '#222'; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(0, -tam / 2 - 20); g.lineTo(-13, -tam / 2 - 2); g.lineTo(13, -tam / 2 - 2); g.closePath(); g.fill(); g.stroke();
+    g.shadowColor = 'transparent'; g.fillStyle = '#fff'; g.strokeStyle = '#222'; g.lineWidth = 3 * k;
+    g.beginPath(); g.moveTo(0, -tam / 2 - 20 * k); g.lineTo(-13 * k, -tam / 2 - 2 * k); g.lineTo(13 * k, -tam / 2 - 2 * k); g.closePath(); g.fill(); g.stroke();
     g.restore();
 
     var f = ui.face.getContext('2d'); f.clearRect(0, 0, 168, 88);
@@ -697,22 +725,44 @@
       clearTimeout(espera); espera = setTimeout(function () { salvar('programa', B.serialization.workspaces.save(ws)); }, 400);
     });
   }
-  function carregarRobo() { var r = ROBOS.filter(function (x) { return x.id === cfg.robo; })[0] || ROBOS[0]; cfg.robo = r.id; TAM_ROBO = r.tam; imgRobo.src = r.img; }
+  function mapaValido() {
+    return dentro(cfg.inicio.col, cfg.inicio.row) && cfg.etapas.every(function (e) { return dentro(e.col, e.row); }) &&
+      cfg.obst.every(function (k) { var p = k.split(','); return dentro(+p[0], +p[1]); });
+  }
+  function aplicarTapete(id) {
+    var t = TAPETES.filter(function (x) { return x.id === id; })[0] || TAPETES[0], mudou = TAPETE !== t;
+    TAPETE = t; MAT = { w: t.w, h: t.h, ax: t.ax, ay: t.ay, ppcX: t.ppcX, ppcY: t.ppcY, cols: t.cols, rows: t.rows };
+    CEL = t.cel; LINV = !!t.inv; ESTACOES = t.est || []; TAM_OBST = 0.9 * CEL;
+    if (mudou) {
+      amostra = null; corCelula = null; imgTapete.onload = tapeteCarregado; imgTapete.src = t.img;
+      if (ui.canvas) ajustar();
+    }
+    if (!mapaValido()) { cfg.inicio = { col: 0, row: 0, dir: 0 }; cfg.etapas = []; cfg.obst = []; cfg.proibida = ''; salvarMapa(); }
+    if (mudou && ui.canvas) { montarAtalhos(); pararPrograma(); reiniciar(); sincronizarControles(); }
+    return mudou;
+  }
+  function tapeteCarregado() {
+    var c = document.createElement('canvas'); c.width = MAT.w; c.height = MAT.h;
+    amostra = c.getContext('2d', { willReadFrequently: true }); amostra.drawImage(imgTapete, 0, 0, MAT.w, MAT.h);
+    var cc, rr, m = [];
+    for (cc = 0; cc < MAT.cols; cc++) { m.push([]); for (rr = 0; rr < MAT.rows; rr++) m[cc].push(classificarCor(corSob(cc * CEL, rr * CEL))); }
+    corCelula = m;
+  }
+  function carregarRobo() {
+    var r = ROBOS.filter(function (x) { return x.id === cfg.robo; })[0] || ROBOS[0]; cfg.robo = r.id; TAM_ROBO = r.tam; imgRobo.src = r.img;
+    if (TAPETE && TAPETE.id !== r.tapete) { cfg.inicio = { col: 0, row: 0, dir: 0 }; cfg.etapas = []; cfg.obst = []; cfg.proibida = ''; salvarMapa(); }
+    aplicarTapete(r.tapete);
+    if (ui.selRobo) ui.selRobo.value = r.id;
+  }
 
   function pronto() {
-    imgTapete.onload = function () {
-      var c = document.createElement('canvas'); c.width = MAT.w; c.height = MAT.h;
-      amostra = c.getContext('2d', { willReadFrequently: true }); amostra.drawImage(imgTapete, 0, 0, MAT.w, MAT.h);
-      corCelula = [];
-      for (var cc = 0; cc < MAT.cols; cc++) { corCelula.push([]); for (var rr = 0; rr < MAT.rows; rr++) corCelula[cc].push(classificarCor(corSob(cc * 10, rr * 10))); }
-    };
-    imgTapete.src = A.tapete; carregarRobo();
+    carregarRobo();
     document.getElementById('logo').src = A.logo;
     criarEditor(); criarPainel(); reiniciar();
     window.requestAnimationFrame(quadro);
   }
   window.RoboVirtual = { R: R, robo: robo, cfg: cfg, jogo: jogo, tela: tela, exec: exec, executar: executar, parar: pararPrograma, reiniciar: reiniciar,
     gerar: gerarObstaculos, analisar: function () { return analisar(cfg.obst, cfg.inicio, cfg.etapas); }, codigo: codigoMapa, abrirCodigo: abrirCodigo,
-    mudouMapa: mudouMapa, celula: function () { return celulaDe(robo.x, robo.y); }, ws: function () { return ws; } };
+    mudouMapa: mudouMapa, tapete: function () { return TAPETE; }, trocarRobo: function (id) { cfg.robo = id; salvar('robo', id); carregarRobo(); }, nomeCel: nomeCel, parseCelula: parseCelula, celula: function () { return celulaDe(robo.x, robo.y); }, ws: function () { return ws; } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pronto); else pronto();
 })();
