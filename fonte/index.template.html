@@ -2,7 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b76c4">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
 <title>Robô Virtual — Tapete de Missões</title>
 <style>
 *{box-sizing:border-box}
@@ -95,6 +99,13 @@ html,body{height:100%;margin:0;overflow:hidden;font:14px/1.35 "Segoe UI Rounded"
 #sim .codigo button{font-size:12px;padding:3px 8px;border-width:1px}
 #sim select,#sim input{font:inherit;padding:4px 6px;border-radius:10px;border:2px solid #dfe6ee;max-width:100%}
 #sim input.cod{flex:1;min-width:110px;font-family:monospace;font-size:12px;letter-spacing:.5px;user-select:text}
+/* telas pequenas (celular): o tapete abre por cima dos blocos */
+#area.estreito #sim{position:absolute;right:0;top:0;bottom:0;z-index:90}
+#area.estreito #aba{position:absolute;top:50%;margin:-35px 0 0 0;z-index:91;transition:right .2s}
+#area.estreito .blocklyToolbox{width:78px}
+#area.estreito .rvIcone{width:32px;height:32px;font-size:17px}#area.estreito .rvRot{font-size:10.5px !important}
+#area.estreito .redondo{width:54px;height:54px}#area.estreito #controles{right:46px;bottom:12px;gap:10px}
+@media (max-height:480px){#topo{height:40px}#area{top:40px}#topo h1{font-size:16px}#topo .logo img{height:22px}}
 @media (max-width:900px){#topo .cred{display:none}#zoom{display:none}}@media (max-width:620px){#topo h1 small{display:none}}
 </style>
 </head>
@@ -122,5 +133,9 @@ html,body{height:100%;margin:0;overflow:hidden;font:14px/1.35 "Segoe UI Rounded"
 <script>/*ARQUIVOS*/</script>
 <script>/*BLOCOS*/</script>
 <script>/*APP*/</script>
+<script>
+// instalação como app (Android/Chrome): só funciona quando a página está em um endereço https
+try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+</script>
 </body>
 </html>

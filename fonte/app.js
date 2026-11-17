@@ -25,7 +25,7 @@
   function salvar(k, v) { try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) { /* sem armazenamento */ } }
 
   var cfg = {
-    aberto: carregar('aberto', true), inicio: carregar('inicio', { col: 0, row: 0, dir: 0 }), etapas: carregar('etapas', []),
+    aberto: carregar('aberto', window.innerWidth >= 760 && window.innerHeight >= 520), inicio: carregar('inicio', { col: 0, row: 0, dir: 0 }), etapas: carregar('etapas', []),
     obst: carregar('obst', []), proibida: carregar('proibida', ''), nivel: carregar('nivel', 0), largura: carregar('largura', 480),
     rastro: carregar('rastro', true), turbo: carregar('turbo', 1), som: carregar('som', true), robo: carregar('robo', 'laranja')
   };
@@ -590,7 +590,10 @@
     i = Math.max(0, Math.min(tam.length - 1, i + s)); cfg.largura = tam[i]; salvar('largura', cfg.largura); ajustar();
   }
   function ajustar() {
-    var w = Math.max(220, Math.min(cfg.largura, Math.round(window.innerWidth * 0.55) - 20));
+    var estreito = window.innerWidth < 760 || window.innerHeight < 520;
+    document.getElementById('area').classList.toggle('estreito', estreito);
+    var w = estreito ? Math.max(220, Math.min(560, window.innerWidth - 60)) : Math.max(220, Math.min(cfg.largura, Math.round(window.innerWidth * 0.55) - 20));
+    ui.aba.style.right = estreito ? (cfg.aberto ? (w + 20) + 'px' : '0px') : '';
     ui.canvas.width = MAT.w; ui.canvas.height = MAT.h;
     ui.canvas.style.width = w + 'px'; ui.canvas.style.height = Math.round(w * MAT.h / MAT.w) + 'px';
     ui.sim.style.width = cfg.aberto ? (w + 20) + 'px' : '0px';
@@ -684,7 +687,7 @@
     ws = B.inject('blockly', {
       toolbox: window.RoboBlocos.CAIXA, theme: window.RoboBlocos.TEMA, renderer: 'zelos', sounds: false, trashcan: false,
       media: 'data:,', grid: { spacing: 28, length: 2, colour: '#d5dbe3', snap: false },
-      zoom: { controls: false, wheel: true, startScale: 1, maxScale: 1.6, minScale: 0.4, scaleSpeed: 1.1 }, move: { scrollbars: true, drag: true, wheel: true }
+      zoom: { controls: false, wheel: true, startScale: (window.innerWidth < 760 || window.innerHeight < 520) ? 0.75 : 1, maxScale: 1.6, minScale: 0.4, scaleSpeed: 1.1 }, move: { scrollbars: true, drag: true, wheel: true }
     });
     var salvo = carregar('programa', null);
     try { B.serialization.workspaces.load(salvo || PROGRAMA_INICIAL, ws); } catch (e) { console.warn(e); B.serialization.workspaces.load(PROGRAMA_INICIAL, ws); }
