@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robô Virtual — Tapete de Missões</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;font:14px/1.35 "Segoe UI Rounded","Nunito","Trebuchet MS","Segoe UI","Helvetica Neue",Arial,sans-serif;color:#2b3340;background:#e9f3fb}
+#topo{height:56px;background:linear-gradient(90deg,#0b76c4 0%,#1296d4 55%,#19a974 100%);color:#fff;display:flex;align-items:center;gap:12px;padding:0 16px;white-space:nowrap;position:relative;overflow:hidden}
+#topo:after{content:"";position:absolute;right:300px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,214,10,.22);box-shadow:90px 40px 0 -20px rgba(244,102,36,.25),-120px 50px 0 -34px rgba(179,211,53,.3)}
+#topo .logo{background:#fff;border-radius:12px;padding:5px 10px;display:flex;box-shadow:0 2px 6px rgba(0,0,0,.18);z-index:1}#topo .logo img{height:30px;display:block}
+#topo h1{font-size:20px;margin:0;font-weight:800;letter-spacing:.2px;z-index:1}#topo h1 small{font-weight:600;font-size:14px;opacity:.95}
+#topo .cred{margin-left:auto;font-size:12.5px;opacity:.97;z-index:1}
+#area{position:absolute;top:56px;left:0;right:0;bottom:0;display:flex}
+#editor{position:relative;flex:1;min-width:0}
+#blockly{position:absolute;inset:0}
+#controles{position:absolute;right:18px;bottom:18px;display:flex;gap:14px;align-items:center;z-index:20}
+#zoom{position:absolute;left:118px;bottom:20px;display:flex;gap:8px;z-index:20}
+#zoom button{width:38px;height:38px;border-radius:50%;border:0;background:#fff;color:#0b76c4;font:800 19px/1 Arial;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+#zoom button:hover{background:#e3f1fc}
+.redondo{width:66px;height:66px;border-radius:50%;border:4px solid #fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;transition:transform .12s}
+.redondo:hover{transform:scale(1.07)}.redondo:active{transform:scale(.95)}
+#bt-play{background:#55c22b}#bt-play.rodando{animation:pulsa 1s infinite}
+@keyframes pulsa{0%,100%{box-shadow:0 0 0 0 rgba(85,194,43,.55),0 4px 12px rgba(0,0,0,.28)}50%{box-shadow:0 0 0 12px rgba(85,194,43,0),0 4px 12px rgba(0,0,0,.28)}}
+#bt-stop{background:#f25a3a}
+.redondo svg{width:30px;height:30px;fill:#fff}
+#aba{flex:none;align-self:center;width:34px;height:70px;border:0;border-radius:16px 0 0 16px;background:#19a974;color:#fff;font:800 22px/70px Arial;cursor:pointer;padding:0;box-shadow:-2px 2px 8px rgba(0,0,0,.2);z-index:21;margin-left:-34px;position:relative}
+#aba:hover{background:#12855b}
+
+/* caixa de ferramentas: bolinhas coloridas com ícone */
+.blocklyToolbox{padding:8px 0 !important;border-right:0;box-shadow:2px 0 10px rgba(0,0,0,.08);width:104px;overflow-x:hidden}
+.rvCat{border-left:0 !important;padding:5px 0 !important;margin:2px 6px;border-radius:14px;height:auto !important;cursor:pointer}
+.rvCat .blocklyTreeRowContentContainer{display:flex;flex-direction:column;align-items:center;gap:2px}
+.rvCat:hover{background:#eef5fb}
+.rvIcone{width:40px;height:40px;border-radius:50%;display:flex !important;align-items:center;justify-content:center;font-size:21px;font-style:normal;box-shadow:inset 0 -3px 0 rgba(0,0,0,.14);visibility:visible !important}
+.rvRot{font-size:12.5px !important;font-weight:700;color:#3a4350}
+.blocklyToolboxSelected .rvRot{color:#fff !important}
+.blocklyToolboxSelected .rvIcone{background:#fff}
+.rvI-evento{background:#f2a900}.rvI-evento:before{content:"🚩"}
+.rvI-movimento{background:#12a36d}.rvI-movimento:before{content:"🧭"}
+.rvI-luz{background:#2573d9}.rvI-luz:before{content:"💡"}
+.rvI-som{background:#14a8b8}.rvI-som:before{content:"🔊"}
+.rvI-sensor{background:#3b9ee6}.rvI-sensor:before{content:"👀"}
+.rvI-controle{background:#ee8a11}.rvI-controle:before{content:"🔁"}
+.rvI-operador{background:#3fa33a}.rvI-operador:before{content:"➕"}
+.rvI-variavel{background:#f06a1d}.rvI-variavel:before{content:"📦"}
+.rvI-meus{background:#e0457b}.rvI-meus:before{content:"⭐"}
+
+/* painel do simulador */
+#sim{flex:none;background:linear-gradient(180deg,#fff9e8 0%,#eef8ff 100%);overflow-y:auto;overflow-x:hidden;box-shadow:-3px 0 14px rgba(0,0,0,.14);user-select:none;transition:width .2s}
+#sim.fechado{box-shadow:none}
+#sim .top{display:flex;align-items:center;gap:6px;background:#19a974;color:#fff;padding:9px 12px;font-weight:800;font-size:16px;position:sticky;top:0;z-index:2}
+#sim .top span{flex:1}
+#sim button{font:inherit;border:2px solid #dfe6ee;background:#fff;border-radius:12px;padding:5px 10px;cursor:pointer;color:#2b3340;font-weight:700;transition:transform .1s}
+#sim button:hover{background:#f2f8fd}#sim button:active{transform:scale(.95)}
+#sim .top button{border:0;background:rgba(255,255,255,.25);color:#fff;padding:2px 10px}
+#sim .corpo{padding:10px}
+#sim .moldura{background:#fff;border-radius:16px;padding:6px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+#sim canvas.mat{display:block;border-radius:11px;background:#d9d9dc}
+#sim .status{display:flex;gap:10px;align-items:center;margin-top:10px}
+#sim .face{background:#10151c;border-radius:12px;flex:none;width:132px;height:69px;border:3px solid #2b3340}
+#sim .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+#sim .chip{background:#fff;border-radius:999px;padding:5px 11px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.12);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+#sim .seta{font-style:normal;display:inline-block;color:#0b76c4;font-size:16px;line-height:1}
+#sim .bola{width:16px;height:16px;border-radius:50%;border:2px solid #2b3340;display:inline-block}
+#sim .aviso{min-height:22px;font-weight:800;margin-top:8px;font-size:15px}
+#sim .placar{font-weight:800;color:#3a4350}#sim .placar:not(:empty){background:#fff;border-radius:12px;padding:6px 10px;margin-top:4px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+#sim .log{color:#7b8794;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0}
+#sim .acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+#sim button.grande{background:#0b76c4;border-color:#0b76c4;color:#fff;font-size:15px;padding:8px 16px;flex:1;min-width:120px}
+#sim button.grande:hover{background:#0a67ab}
+#sim button.icone{width:44px;height:40px;padding:0;font-size:17px}#sim button.icone.largo{width:68px;font-size:14px}
+#sim button.ativo{background:#19a974;color:#fff;border-color:#19a974}
+#sim .montar{margin-top:12px;background:#fff;border-radius:16px;padding:10px;box-shadow:0 3px 10px rgba(0,0,0,.1)}
+#sim .titulo{font-weight:800;font-size:15px;margin-bottom:8px}
+#sim .cartoes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+#sim .cartao{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px;border-radius:14px;font-size:12.5px;border-width:3px}
+#sim .cartao .ic{font-size:26px;line-height:1.1}
+#sim .cartao.c-inicio{background:#fff3e0;border-color:#ffd9a3}#sim .cartao.c-chegada{background:#ffe9ea;border-color:#ffc2c5}
+#sim .cartao.c-obst{background:#f3e9dd;border-color:#dcc3a3}#sim .cartao.c-proibida{background:#f0ebfa;border-color:#d3c4f0}
+#sim .cartao.ativo{background:#19a974;border-color:#0f7f57;color:#fff;transform:translateY(-2px);box-shadow:0 4px 0 #0f7f57}
+#sim .dica{margin-top:9px;font-weight:600;color:#3a4350;min-height:19px}
+#sim .opcoes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+#sim .rot{color:#66717e;font-weight:700}
+#sim button.dir{width:42px;height:40px;padding:0;font-size:20px}
+#sim button.num{min-width:40px;height:38px;padding:0 8px;font-size:15px}#sim button.num.largo{padding:0 12px}
+#sim button.nivel{display:flex;flex-direction:column;align-items:center;flex:1;min-width:66px;padding:6px 4px;border-color:var(--cor);font-size:12.5px;gap:1px}
+#sim button.nivel .dado{font-size:20px;line-height:1.1}#sim button.nivel:hover{background:var(--cor);color:#fff}
+#sim button.cor{width:38px;height:38px;border-radius:50%;padding:0;border:3px solid #cfd8e2;color:#8a94a0;font-weight:800}
+#sim button.cor.ativo{border-color:#19a974;box-shadow:0 0 0 3px rgba(25,169,116,.35);transform:scale(1.1);color:#19a974}
+#sim .codigo{margin-top:14px;font-size:12px;color:#8a94a0}
+#sim .codigo summary{cursor:pointer;width:max-content;margin-left:auto}
+#sim .codigo .linha{display:flex;gap:5px;margin-top:6px}
+#sim .codigo button{font-size:12px;padding:3px 8px;border-width:1px}
+#sim select,#sim input{font:inherit;padding:4px 6px;border-radius:10px;border:2px solid #dfe6ee;max-width:100%}
+#sim input.cod{flex:1;min-width:110px;font-family:monospace;font-size:12px;letter-spacing:.5px;user-select:text}
+@media (max-width:900px){#topo .cred{display:none}#zoom{display:none}}@media (max-width:620px){#topo h1 small{display:none}}
+</style>
+</head>
+<body>
+<header id="topo">
+  <div class="logo"><img id="logo" alt="ZOOM education for life"></div>
+  <h1>🤖 Robô Virtual <small>· Tapete de Missões</small></h1>
+  <div class="cred">Feito por <b>Pedro Lima</b> · Orientador Educacional</div>
+</header>
+<div id="area">
+  <div id="editor">
+    <div id="blockly"></div>
+    <div id="zoom"><button id="bt-mais" type="button" title="Aumentar os blocos">+</button><button id="bt-menos" type="button" title="Diminuir os blocos">−</button><button id="bt-centro" type="button" title="Centralizar">⤢</button></div>
+    <div id="controles">
+      <button id="bt-play" class="redondo" type="button" title="Executar o programa"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="bt-stop" class="redondo" type="button" title="Parar o programa"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    </div>
+  </div>
+  <button id="aba" type="button">›</button>
+  <aside id="sim"></aside>
+</div>
+<script>/*BLOCKLY*/</script>
+<script>/*BLOCKS*/</script>
+<script>/*MSG*/</script>
+<script>/*ARQUIVOS*/</script>
+<script>/*BLOCOS*/</script>
+<script>/*APP*/</script>
+</body>
+</html>
